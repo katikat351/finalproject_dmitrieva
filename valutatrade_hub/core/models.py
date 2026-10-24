@@ -151,3 +151,59 @@ class Wallet:
         return {"currency_code": self.currency_code, "balance": self._balance}
 
 
+class Portfolio:
+    """Все кошельки одного пользователя."""
+
+    # фиксированные курсы к USD (позже заменим данными из rates.json / Parser Service)
+    exchange_rates = {"USD": 1.0, "EUR": 1.08, "BTC": 60000.0, "ETH": 3000.0}
+
+    def __init__(self, user_id: int, wallets: dict[str, Wallet] | None = None):
+        self._user_id = user_id
+        self._wallets: dict[str, Wallet] = wallets or {}
+
+    @property
+    def user_id(self) -> int:
+        return self._user_id
+
+    @property
+    def wallets(self) -> dict[str, Wallet]:
+        return dict(self._wallets)  # копия словаря
+
+    def add_currency(self, currency_code: str) -> Wallet:
+        code = currency_code.upper()
+        if code in self._wallets:
+            raise ValueError(f"Кошелёк {code} уже существует")
+        wallet = Wallet(code)
+        self._wallets[code] = wallet
+        return wallet
+
+    def get_wallet(self, currency_code: str) -> Wallet:
+        code = currency_code.upper()
+        if code not in self._wallets:
+            raise KeyError(f"Кошелька {code} нет в портфеле")
+        return self._wallets[code]
+
+    def get_total_value(self, base_currency: str = "USD") -> float:
+        base = base_currency.upper()
+        if base not in self.exchange_rates:
+            raise KeyError(f"Неизвестная базовая валюта: {base}")
+        total_usd = 0.0
+        for code, wallet in self._wallets.items():
+            if code not in self.exchange_rates:
+                raise KeyError(f"Нет курса для валюты {code}")
+            total_usd += wallet.balance * self.exchange_rates[code]
+        return total_usd / self.exchange_rates[base]
+
+    def to_dict(self) -> dict:
+        return {
+            "user_id": self._user_id,
+            "wallets": {c: {"balance": w.balance} for c, w in self._wallets.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Portfolio":
+        wallets = {
+            code: Wallet(code, info["balance"])
+            for code, info in data.get("wallets", {}).items()
+        }
+        return cls(data["user_id"], wallets)
