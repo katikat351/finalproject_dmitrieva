@@ -147,7 +147,7 @@ class ExchangeRateApiClient(BaseApiClient):
                 f"{self.ERRORS.get(error_type, 'API вернул ошибку')}"
             )
 
-        raw_rates = data.get("rates")
+        raw_rates = data.get("conversion_rates") or data.get("rates")
         if not isinstance(raw_rates, dict):
             raise ApiRequestError(f"{self.source_name}: в ответе нет блока rates")
 
