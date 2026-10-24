@@ -100,7 +100,7 @@ def _utc_now() -> str:
 
 def _is_fresh(updated_at: str) -> bool:
     ttl = timedelta(seconds=settings.get("rates_ttl_seconds"))
-    return datetime.now() - datetime.fromisoformat(updated_at) < ttl
+    return datetime.now(timezone.utc) - datetime.fromisoformat(updated_at) < ttl
 
 
 def _load_rates() -> dict:
