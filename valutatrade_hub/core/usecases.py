@@ -6,15 +6,15 @@ from valutatrade_hub.core.currencies import CryptoCurrency, get_currency
 from valutatrade_hub.core.exceptions import CurrencyNotFoundError, RatesUnavailableError
 from valutatrade_hub.core.models import Portfolio, User
 from valutatrade_hub.core.utils import (
-    load_json,
-    save_json,
     validate_amount,
     validate_currency_code,
 )
 from valutatrade_hub.decorators import log_action
+from valutatrade_hub.infra.database import DatabaseManager
 from valutatrade_hub.infra.settings import SettingsLoader
 
 settings = SettingsLoader()
+db = DatabaseManager()
 
 BASE_CURRENCY = settings.get("default_base_currency")
 RATES_BASE = "USD"  # в rates.json все курсы хранятся относительно USD
@@ -38,7 +38,7 @@ def require_login() -> User:
 
 # ---------- портфели ----------
 def _load_portfolios() -> list[dict]:
-    return load_json(settings.get("portfolios_file"), [])
+    return db.load("portfolios", [])
 
 
 def _get_portfolio(user: User) -> Portfolio:
@@ -52,7 +52,7 @@ def _get_portfolio(user: User) -> Portfolio:
 def _save_portfolio(portfolio: Portfolio) -> None:
     items = [i for i in _load_portfolios() if i["user_id"] != portfolio.user_id]
     items.append(portfolio.to_dict())
-    save_json(settings.get("portfolios_file"), items)
+    db.save("portfolios", items)
 
 
 def _ensure_wallet(portfolio: Portfolio, code: str):
@@ -65,7 +65,7 @@ def _ensure_wallet(portfolio: Portfolio, code: str):
 
 # ---------- пользователи ----------
 def _load_users() -> list[dict]:
-    return load_json(settings.get("users_file"), [])
+    return db.load("users", [])
 
 
 @log_action("REGISTER")
@@ -77,7 +77,7 @@ def register(username: str, password: str) -> User:
     user_id = max((item["user_id"] for item in users), default=0) + 1
     user = User(user_id, username, password)  # проверит имя и пароль
     users.append(user.to_dict())
-    save_json(settings.get("users_file"), users)
+    db.save("users", users)
     _save_portfolio(Portfolio(user_id))
     return user
 
@@ -105,7 +105,7 @@ def _is_fresh(updated_at: str) -> bool:
 
 
 def _load_rates() -> dict:
-    data = load_json(settings.get("rates_file"), {})
+    data = db.load("rates", {})
     return data if isinstance(data, dict) else {}
 
 
