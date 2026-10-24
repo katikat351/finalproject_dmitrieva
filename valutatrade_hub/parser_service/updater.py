@@ -20,7 +20,7 @@ logger = logging.getLogger(PARSER_LOGGER_NAME)
 class UpdateResult:
     """Итог обновления"""
 
-    total: int = 0  #сколько курсов получено и записано
+    total: int = 0  # сколько курсов получено и записано
     last_refresh: str | None = None
     errors: list[str] = field(default_factory=list)  # источники, которые упали
 
@@ -81,9 +81,7 @@ class RatesUpdater:
             logger.error("No rates received, nothing was saved")
             raise ApiRequestError("не удалось получить курсы ни из одного источника")
 
-        logger.info(
-            "Writing %d rates to %s...", len(records), self.storage.rates_path
-        )
+        logger.info("Writing %d rates to %s...", len(records), self.storage.rates_path)
         self.storage.save_history(records)
         self.storage.update_snapshot(records)
 
