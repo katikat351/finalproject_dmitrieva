@@ -65,6 +65,7 @@ def _parse_options(
 
 # ---------- команды ----------
 def cmd_register(args: list[str]) -> None:
+    """Команда register: регистрирует пользователя."""
     opts = _parse_options(args, required=("username", "password"))
     user = uc.register(opts["username"], opts["password"])
     print(
@@ -74,12 +75,14 @@ def cmd_register(args: list[str]) -> None:
 
 
 def cmd_login(args: list[str]) -> None:
+    """Команда login: вход в систему."""
     opts = _parse_options(args, required=("username", "password"))
     user = uc.login(opts["username"], opts["password"])
     print(f"Вы вошли как '{user.username}'")
 
 
 def cmd_show_portfolio(args: list[str]) -> None:
+    """Команда show-portfolio: портфель и его стоимость в базовой валюте."""
     opts = _parse_options(args, optional=("base",))
     data = uc.show_portfolio(opts.get("base", uc.BASE_CURRENCY))
     base = data["base"]
@@ -118,18 +121,21 @@ def _print_trade(title: str, res: dict, value_label: str, value_key: str) -> Non
 
 
 def cmd_buy(args: list[str]) -> None:
+    """Команда buy: покупка валюты."""
     opts = _parse_options(args, required=("currency", "amount"))
     res = uc.buy(opts["currency"], opts["amount"])
     _print_trade("Покупка выполнена", res, "Оценочная стоимость покупки", "cost")
 
 
 def cmd_sell(args: list[str]) -> None:
+    """Команда sell: продажа валюты."""
     opts = _parse_options(args, required=("currency", "amount"))
     res = uc.sell(opts["currency"], opts["amount"])
     _print_trade("Продажа выполнена", res, "Оценочная выручка", "proceeds")
 
 
 def cmd_get_rate(args: list[str]) -> None:
+    """Команда get-rate: курс одной валюты к другой."""
     opts = _parse_options(args, required=("from", "to"))
     info = uc.get_rate_info(opts["from"], opts["to"])
     updated = info["updated_at"].replace("T", " ").rstrip("Z")
@@ -142,6 +148,7 @@ def cmd_get_rate(args: list[str]) -> None:
 
 
 def cmd_update_rates(args: list[str]) -> None:
+    """Команда update-rates: обновляет курсы через Parser Service."""
     opts = _parse_options(args, optional=("source",))
     setup_parser_logging(console=True)
     result = build_updater().run_update(opts.get("source"))
@@ -155,6 +162,7 @@ def cmd_update_rates(args: list[str]) -> None:
 
 
 def cmd_show_rates(args: list[str]) -> None:
+    """Команда show-rates: курсы из локального кеша с фильтрами."""
     opts = _parse_options(args, optional=("currency", "top", "base"))
     top = None
     if "top" in opts:
@@ -185,6 +193,7 @@ def cmd_show_rates(args: list[str]) -> None:
 
 
 def cmd_help(args: list[str]) -> None:
+    """Команда help: список команд."""
     print(HELP_TEXT)
 
 
@@ -203,6 +212,7 @@ COMMANDS = {
 
 # ---------- главный цикл ----------
 def main() -> None:
+    """Главный цикл интерактивного интерфейса."""
     setup_logging()
     print("ValutaTrade Hub. Введите help для списка команд, exit для выхода.")
     while True:

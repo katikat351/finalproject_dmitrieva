@@ -31,6 +31,7 @@ class RatesScheduler:
         self._stop = threading.Event()
 
     def stop(self) -> None:
+        """Останавливает планировщик."""
         self._stop.set()
 
     def _sleep(self, seconds: int) -> None:
@@ -54,6 +55,7 @@ class RatesScheduler:
         return not result.errors
 
     def run_forever(self) -> None:
+        """Запускает цикл обновлений до остановки или Ctrl+C."""
         logger.info(
             "Scheduler started: update every %d s (Ctrl+C to stop)", self.interval
         )
@@ -64,6 +66,7 @@ class RatesScheduler:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Точка входа команды rates-scheduler."""
     settings = SettingsLoader()
     parser = argparse.ArgumentParser(
         prog="rates-scheduler",

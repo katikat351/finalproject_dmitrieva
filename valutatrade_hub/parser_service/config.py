@@ -11,6 +11,8 @@ settings = SettingsLoader()
 @dataclass
 class ParserConfig:
     # Ключ берётся из переменной окружения, в коде и в git его нет
+    """Настройки Parser Service: эндпоинты, списки валют, пути и таймаут."""
+
     EXCHANGERATE_API_KEY: str | None = field(
         default_factory=lambda: os.getenv("EXCHANGERATE_API_KEY")
     )

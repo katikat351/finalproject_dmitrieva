@@ -82,6 +82,7 @@ class CoinGeckoClient(BaseApiClient):
     source_key = "coingecko"
 
     def fetch_rates(self) -> dict[str, float]:
+        """Курсы криптовалют к базовой валюте (ключи вида BTC_USD)."""
         cfg = self.config
         base = cfg.BASE_CURRENCY
         try:
@@ -133,6 +134,7 @@ class ExchangeRateApiClient(BaseApiClient):
         return super()._explain(response)
 
     def fetch_rates(self) -> dict[str, float]:
+        """Курсы фиата к базовой валюте (сколько USD за 1 единицу валюты)."""
         cfg = self.config
         base = cfg.BASE_CURRENCY
         if not cfg.EXCHANGERATE_API_KEY:

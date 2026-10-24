@@ -30,6 +30,7 @@ def _current_username() -> str | None:
 
 # ---------- сессия ----------
 def require_login() -> User:
+    """Текущий пользователь; без входа бросает ValueError"""
     user = _session["user"]
     if user is None:
         raise ValueError("Сначала выполните login")
@@ -70,6 +71,7 @@ def _load_users() -> list[dict]:
 
 @log_action("REGISTER")
 def register(username: str, password: str) -> User:
+    """Регистрирует пользователя и создаёт ему пустой портфель."""
     username = username.strip()
     users = _load_users()
     if any(item["username"] == username for item in users):
@@ -84,6 +86,7 @@ def register(username: str, password: str) -> User:
 
 @log_action("LOGIN")
 def login(username: str, password: str) -> User:
+    """Проверяет пароль и сохраняет пользователя в текущей сессии."""
     for item in _load_users():
         if item["username"] == username:
             user = User.from_dict(item)
@@ -281,6 +284,8 @@ def show_portfolio(base: str = BASE_CURRENCY) -> dict:
 # ---------- сделки ----------
 @log_action("BUY", verbose=True, user_getter=_current_username)
 def buy(currency: str, amount: float) -> dict:
+    """Покупка валюты.
+    USD пополняется извне, остальные валюты оплачиваются с USD-кошелька"""
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
@@ -311,6 +316,8 @@ def buy(currency: str, amount: float) -> dict:
 
 @log_action("SELL", verbose=True, user_getter=_current_username)
 def sell(currency: str, amount: float) -> dict:
+    """Продажа валюты.
+    USD выводится вовне, выручка от остальных валют идёт на USD-кошелёк"""
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
