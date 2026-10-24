@@ -1,3 +1,5 @@
+"""Вспомогательные функции: работа с JSON и валидаторы."""
+
 import json
 import os
 from datetime import datetime
@@ -41,4 +43,5 @@ def validate_amount(amount) -> float:
 
 
 def now_iso() -> str:
+    """Текущее локальное время в формате ISO без долей секунды."""
     return datetime.now().isoformat(timespec="seconds")

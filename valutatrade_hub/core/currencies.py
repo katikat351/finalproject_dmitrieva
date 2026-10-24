@@ -36,6 +36,7 @@ class FiatCurrency(Currency):
         self.issuing_country = issuing_country.strip()
 
     def get_display_info(self) -> str:
+        """Строка для UI и логов: код, название и страна эмиссии."""
         return f"[FIAT] {self.code} — {self.name} (Issuing: {self.issuing_country})"
 
 
@@ -54,6 +55,7 @@ class CryptoCurrency(Currency):
         self.market_cap = float(market_cap)
 
     def get_display_info(self) -> str:
+        """Строка для UI и логов: код, название, алгоритм и капитализация."""
         mantissa, exponent = f"{self.market_cap:.2e}".split("e")
         mcap = f"{mantissa}e{int(exponent)}"
         return (

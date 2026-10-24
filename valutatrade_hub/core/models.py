@@ -1,3 +1,5 @@
+"""Модели предметной области: пользователь, кошелёк, портфель."""
+
 import hashlib
 import secrets
 from datetime import datetime
@@ -50,10 +52,12 @@ class User:
     # --- геттеры / сеттеры ---
     @property
     def user_id(self) -> int:
+        """Уникальный идентификатор пользователя."""
         return self._user_id
 
     @property
     def username(self) -> str:
+        """Имя пользователя (не может быть пустым)."""
         return self._username
 
     @username.setter
@@ -64,18 +68,22 @@ class User:
 
     @property
     def hashed_password(self) -> str:
+        """Хеш пароля (SHA-256 с солью)."""
         return self._hashed_password
 
     @property
     def salt(self) -> str:
+        """Уникальная соль пользователя."""
         return self._salt
 
     @property
     def registration_date(self) -> datetime:
+        """Дата и время регистрации."""
         return self._registration_date
 
     # --- методы ---
     def get_user_info(self) -> str:
+        """Строка с информацией о пользователе (без пароля)."""
         return (
             f"ID: {self._user_id}, "
             f"имя: {self._username}, "
@@ -83,14 +91,17 @@ class User:
         )
 
     def change_password(self, new_password: str) -> None:
+        """Меняет пароль: проверяет длину, создаёт новую соль и хеш."""
         self._validate_password(new_password)
         self._salt = secrets.token_hex(8)
         self._hashed_password = self._hash(new_password, self._salt)
 
     def verify_password(self, password: str) -> bool:
+        """Проверяет, совпадает ли пароль с сохранённым хешем."""
         return self._hash(password, self._salt) == self._hashed_password
 
     def to_dict(self) -> dict:
+        """Словарь для записи в users.json."""
         return {
             "user_id": self._user_id,
             "username": self._username,
@@ -101,6 +112,7 @@ class User:
 
     @classmethod
     def from_dict(cls, data: dict) -> "User":
+        """Создаёт пользователя из словаря (формат users.json)."""
         return cls(
             user_id=data["user_id"],
             username=data["username"],
@@ -120,6 +132,7 @@ class Wallet:
 
     @property
     def balance(self) -> float:
+        """Текущий баланс; отрицательные и нечисловые значения запрещены."""
         return self._balance
 
     @balance.setter
@@ -138,10 +151,12 @@ class Wallet:
             raise ValueError("Сумма должна быть положительным числом")
 
     def deposit(self, amount: float) -> None:
+        """Пополняет баланс на положительную сумму."""
         self._check_amount(amount)
         self._balance += amount
 
     def withdraw(self, amount: float) -> None:
+        """Списывает сумму с баланса; при нехватке бросает InsufficientFundsError."""
         self._check_amount(amount)
         if amount > self._balance:
             raise InsufficientFundsError(
@@ -150,9 +165,11 @@ class Wallet:
         self._balance -= amount
 
     def get_balance_info(self) -> str:
+        """Строка с кодом валюты и текущим балансом."""
         return f"{self.currency_code}: {self._balance:.4f}"
 
     def to_dict(self) -> dict:
+        """Словарь для записи в portfolios.json."""
         return {"currency_code": self.currency_code, "balance": self._balance}
 
     def _decimals(self) -> int:
@@ -187,9 +204,11 @@ class Portfolio:
 
     @property
     def wallets(self) -> dict[str, Wallet]:
+        """Копия словаря кошельков (код валюты -> Wallet)."""
         return dict(self._wallets)  # копия словаря
 
     def add_currency(self, currency_code: str) -> Wallet:
+        """Создаёт кошелёк для новой валюты; код должен быть уникальным."""
         code = currency_code.upper()
         if code in self._wallets:
             raise ValueError(f"Кошелёк {code} уже существует")
@@ -198,6 +217,7 @@ class Portfolio:
         return wallet
 
     def get_wallet(self, currency_code: str) -> Wallet:
+        """Возвращает кошелёк по коду валюты (KeyError, если его нет)."""
         code = currency_code.upper()
         if code not in self._wallets:
             raise KeyError(f"Кошелька {code} нет в портфеле")
@@ -224,6 +244,7 @@ class Portfolio:
         )
 
     def to_dict(self) -> dict:
+        """Словарь для записи в portfolios.json."""
         return {
             "user_id": self._user_id,
             "wallets": {c: {"balance": w.balance} for c, w in self._wallets.items()},
