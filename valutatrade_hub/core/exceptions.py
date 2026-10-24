@@ -28,3 +28,7 @@ class ApiRequestError(Exception):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(f"Ошибка при обращении к внешнему API: {reason}")
+
+
+class RatesUnavailableError(Exception):
+    """Курса нет в локальном кеше или он устарел."""
