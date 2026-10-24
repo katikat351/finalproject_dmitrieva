@@ -20,6 +20,8 @@ DEFAULTS: dict[str, Any] = {
     "log_file": "actions.log",
     "log_level": "INFO",
     "log_format": "%(levelname)s %(asctime)s %(message)s",
+    "log_max_bytes": 1_000_000,
+    "log_backup_count": 3,
 }
 
 _MISSING = object()
