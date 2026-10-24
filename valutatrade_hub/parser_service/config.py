@@ -22,7 +22,7 @@ class ParserConfig:
     # Валюты
     BASE_CURRENCY: str = "USD"
     FIAT_CURRENCIES: tuple = ("EUR", "GBP", "RUB")
-    CRYPTO_CURRENCIES: tuple = ("BTC", "ETH", "SOL")
+    CRYPTO_CURRENCIES: tuple = ("BTC", "ETH", "SOL", "TRX")
     CRYPTO_ID_MAP: dict = field(
         default_factory=lambda: {
             "BTC": "bitcoin",
