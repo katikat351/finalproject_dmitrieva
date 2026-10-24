@@ -81,3 +81,8 @@ def get_currency(code: str) -> Currency:
         return _REGISTRY[key]
     except (KeyError, TypeError):
         raise CurrencyNotFoundError(code) from None
+
+
+def get_supported_codes() -> list[str]:
+    """Коды всех известных валют"""
+    return sorted(_REGISTRY)
