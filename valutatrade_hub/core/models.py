@@ -2,6 +2,12 @@ import hashlib
 import secrets
 from datetime import datetime
 
+from valutatrade_hub.core.currencies import FiatCurrency, get_currency
+from valutatrade_hub.core.exceptions import (
+    CurrencyNotFoundError,
+    InsufficientFundsError,
+)
+
 
 class User:
     """Пользователь системы."""
@@ -138,10 +144,8 @@ class Wallet:
     def withdraw(self, amount: float) -> None:
         self._check_amount(amount)
         if amount > self._balance:
-            raise ValueError(
-                f"Недостаточно средств: доступно {self._balance:.4f} "
-                f"{self.currency_code}, требуется {amount:.4f} "
-                f"{self.currency_code}"
+            raise InsufficientFundsError(
+                self._balance, amount, self.currency_code, self._decimals()
             )
         self._balance -= amount
 
@@ -150,6 +154,14 @@ class Wallet:
 
     def to_dict(self) -> dict:
         return {"currency_code": self.currency_code, "balance": self._balance}
+
+    def _decimals(self) -> int:
+        """Сколько знаков показывать: 2 для фиата, 4 для крипты и неизвестных."""
+        try:
+            is_fiat = isinstance(get_currency(self.currency_code), FiatCurrency)
+        except CurrencyNotFoundError:
+            is_fiat = False
+        return 2 if is_fiat else 4
 
 
 class Portfolio:

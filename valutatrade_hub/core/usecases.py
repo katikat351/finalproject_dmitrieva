@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+from valutatrade_hub.core.currencies import get_currency
+from valutatrade_hub.core.exceptions import ApiRequestError, CurrencyNotFoundError
 from valutatrade_hub.core.models import Portfolio, User
 from valutatrade_hub.core.utils import (
     PORTFOLIOS_FILE,
@@ -27,7 +29,7 @@ STUB_RATES_TO_USD = {
     "RUB": 0.01016,
 }
 
-# Текущая сессия хранится в памяти (пока работает программа).
+# Текущая сессия хранится в памяти (пока работает программа)
 _session: dict[str, User | None] = {"user": None}
 
 
@@ -100,16 +102,16 @@ def _is_fresh(updated_at: str) -> bool:
 
 
 def _fetch_rate(from_code: str, to_code: str) -> float | None:
-    """Заглушка получения курса (потом здесь будет Parser Service)."""
+    """Заглушка получения курса (потом здесь будет Parser Service)"""
     if from_code not in STUB_RATES_TO_USD or to_code not in STUB_RATES_TO_USD:
-        return None
+        raise ApiRequestError(f"нет данных по паре {from_code}→{to_code}")
     return STUB_RATES_TO_USD[from_code] / STUB_RATES_TO_USD[to_code]
 
 
 def get_rate(from_code: str, to_code: str) -> tuple[float, str]:
     """Возвращает (курс, время обновления). Сначала смотрит кеш rates.json."""
-    from_code = validate_currency_code(from_code)
-    to_code = validate_currency_code(to_code)
+    from_code = get_currency(validate_currency_code(from_code)).code
+    to_code = get_currency(validate_currency_code(to_code)).code
     if from_code == to_code:
         return 1.0, now_iso()
 
@@ -120,10 +122,6 @@ def get_rate(from_code: str, to_code: str) -> tuple[float, str]:
         return entry["rate"], entry["updated_at"]
 
     rate = _fetch_rate(from_code, to_code)
-    if rate is None:
-        raise ValueError(
-            f"Курс {from_code}→{to_code} недоступен. Повторите попытку позже."
-        )
     updated_at = now_iso()
     rates[key] = {"rate": rate, "updated_at": updated_at}
     rates["source"] = "stub"
@@ -147,9 +145,9 @@ def _rate_for_trade(code: str) -> float:
     """ошибка курса по валюте code"""
     try:
         return get_rate(code, BASE_CURRENCY)[0]
-    except ValueError:
-        raise ValueError(
-            f"Не удалось получить курс для {code}→{BASE_CURRENCY}"
+    except ApiRequestError:
+        raise ApiRequestError(
+            f"не удалось получить курс для {code}→{BASE_CURRENCY}"
         ) from None
 
 
@@ -157,8 +155,10 @@ def _rate_for_trade(code: str) -> float:
 def show_portfolio(base: str = BASE_CURRENCY) -> dict:
     user = require_login()
     base = validate_currency_code(base)
-    if base not in STUB_RATES_TO_USD:
-        raise ValueError(f"Неизвестная базовая валюта '{base}'")
+    try:
+        base = get_currency(base).code
+    except CurrencyNotFoundError:
+        raise ValueError(f"Неизвестная базовая валюта '{base}'") from None
 
     portfolio = _get_portfolio(user.user_id)
     rows = []
@@ -174,7 +174,7 @@ def show_portfolio(base: str = BASE_CURRENCY) -> dict:
 # ---------- сделки ----------
 def buy(currency: str, amount: float) -> dict:
     user = require_login()
-    code = validate_currency_code(currency)
+    code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
     portfolio = _get_portfolio(user.user_id)
     wallet = _ensure_wallet(portfolio, code)
@@ -202,7 +202,7 @@ def buy(currency: str, amount: float) -> dict:
 
 def sell(currency: str, amount: float) -> dict:
     user = require_login()
-    code = validate_currency_code(currency)
+    code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
     portfolio = _get_portfolio(user.user_id)
     try:
