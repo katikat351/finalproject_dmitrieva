@@ -184,7 +184,7 @@ class Wallet:
 class Portfolio:
     """Все кошельки одного пользователя."""
 
-    # фиксированные курсы к USD (позже заменим данными из rates.json / Parser Service)
+    # фиксированные курсы к USD (если не передан rate_getter)
     exchange_rates = {"USD": 1.0, "EUR": 1.08, "BTC": 60000.0, "ETH": 3000.0}
 
     def __init__(
@@ -199,13 +199,18 @@ class Portfolio:
 
     @property
     def user_id(self) -> int:
-        """Владелец портфеля (только чтение)"""
+        """Идентификатор владельца портфеля"""
         return self._user_id
+
+    @property
+    def user(self) -> User | None:
+        """Владелец портфеля (только чтение)."""
+        return self._user
 
     @property
     def wallets(self) -> dict[str, Wallet]:
         """Копия словаря кошельков (код валюты -> Wallet)."""
-        return dict(self._wallets)  # копия словаря
+        return dict(self._wallets)
 
     def add_currency(self, currency_code: str) -> Wallet:
         """Создаёт кошелёк для новой валюты; код должен быть уникальным."""
@@ -252,7 +257,7 @@ class Portfolio:
 
     @classmethod
     def from_dict(cls, data: dict, user: User | None = None) -> "Portfolio":
-        """Создаёт портфель из словаря (формат portfolios.json)"""
+        """Создаёт портфель из словаря (формат portfolios.json)."""
         wallets = {
             code: Wallet(code, info["balance"])
             for code, info in data.get("wallets", {}).items()
