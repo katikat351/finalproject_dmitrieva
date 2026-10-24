@@ -41,11 +41,12 @@ def _load_portfolios() -> list[dict]:
     return load_json(settings.get("portfolios_file"), [])
 
 
-def _get_portfolio(user_id: int) -> Portfolio:
+def _get_portfolio(user: User) -> Portfolio:
+    """Портфель пользователя из хранилища (или пустой, если его ещё нет)."""
     for item in _load_portfolios():
-        if item["user_id"] == user_id:
-            return Portfolio.from_dict(item)
-    return Portfolio(user_id)
+        if item["user_id"] == user.user_id:
+            return Portfolio.from_dict(item, user)
+    return Portfolio(user.user_id, user=user)
 
 
 def _save_portfolio(portfolio: Portfolio) -> None:
@@ -237,6 +238,7 @@ def list_rates(
 
 # ---------- портфель ----------
 def show_portfolio(base: str = BASE_CURRENCY) -> dict:
+    """Кошельки пользователя и их стоимость в базовой валюте"""
     user = require_login()
     base = validate_currency_code(base)
     try:
@@ -244,16 +246,19 @@ def show_portfolio(base: str = BASE_CURRENCY) -> dict:
     except CurrencyNotFoundError:
         raise ValueError(f"Неизвестная базовая валюта '{base}'") from None
 
-    portfolio = _get_portfolio(user.user_id)
+    portfolio = _get_portfolio(user)
     rows = []
     total = 0.0
     stale = False
     for code, wallet in portfolio.wallets.items():
-        rate, updated_at = get_rate(code, base, allow_stale=True)
-        stale = stale or not _is_fresh(updated_at)
-        value = wallet.balance * rate
-        rows.append({"code": code, "balance": wallet.balance, "value": value})
-        total += value
+        rate, _, wallet_stale = get_rate(code, base, allow_stale=True)
+        stale = stale or wallet_stale
+        rows.append(
+            {"code": code, "balance": wallet.balance, "value": wallet.balance * rate}
+        )
+    total = portfolio.get_total_value(
+        base, lambda src, dst: get_rate(src, dst, allow_stale=True)[0]
+    )
     return {
         "username": user.username,
         "base": base,
@@ -269,7 +274,7 @@ def buy(currency: str, amount: float) -> dict:
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
-    portfolio = _get_portfolio(user.user_id)
+    portfolio = _get_portfolio(user)
     wallet = _ensure_wallet(portfolio, code)
     old_balance = wallet.balance
 
@@ -299,7 +304,7 @@ def sell(currency: str, amount: float) -> dict:
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
     amount = validate_amount(amount)
-    portfolio = _get_portfolio(user.user_id)
+    portfolio = _get_portfolio(user)
     try:
         wallet = portfolio.get_wallet(code)
     except KeyError:
