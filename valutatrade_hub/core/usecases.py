@@ -12,6 +12,7 @@ from valutatrade_hub.core.utils import (
     validate_amount,
     validate_currency_code,
 )
+from valutatrade_hub.decorators import log_action
 from valutatrade_hub.infra.settings import SettingsLoader
 
 settings = SettingsLoader()
@@ -30,6 +31,11 @@ STUB_RATES_TO_USD = {
 
 # Текущая сессия хранится в памяти (пока работает программа)
 _session: dict[str, User | None] = {"user": None}
+
+
+def _current_username() -> str | None:
+    user = _session["user"]
+    return user.username if user else None
 
 
 # ---------- сессия ----------
@@ -71,6 +77,7 @@ def _load_users() -> list[dict]:
     return load_json(settings.get("users_file"), [])
 
 
+@log_action("REGISTER")
 def register(username: str, password: str) -> User:
     username = username.strip()
     users = _load_users()
@@ -84,6 +91,7 @@ def register(username: str, password: str) -> User:
     return user
 
 
+@log_action("LOGIN")
 def login(username: str, password: str) -> User:
     for item in _load_users():
         if item["username"] == username:
@@ -172,6 +180,7 @@ def show_portfolio(base: str = BASE_CURRENCY) -> dict:
 
 
 # ---------- сделки ----------
+@log_action("BUY", verbose=True, user_getter=_current_username)
 def buy(currency: str, amount: float) -> dict:
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
@@ -194,12 +203,14 @@ def buy(currency: str, amount: float) -> dict:
         "currency": code,
         "amount": amount,
         "rate": rate,
+        "base": BASE_CURRENCY,
         "old_balance": old_balance,
         "new_balance": wallet.balance,
         "cost": amount * rate,
     }
 
 
+@log_action("SELL", verbose=True, user_getter=_current_username)
 def sell(currency: str, amount: float) -> dict:
     user = require_login()
     code = get_currency(validate_currency_code(currency)).code
@@ -227,6 +238,7 @@ def sell(currency: str, amount: float) -> dict:
         "currency": code,
         "amount": amount,
         "rate": rate,
+        "base": BASE_CURRENCY,
         "old_balance": old_balance,
         "new_balance": wallet.balance,
         "proceeds": amount * rate,

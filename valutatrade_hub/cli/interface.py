@@ -11,6 +11,7 @@ from valutatrade_hub.core.exceptions import (
     CurrencyNotFoundError,
     InsufficientFundsError,
 )
+from valutatrade_hub.logging_config import setup_logging
 
 CRYPTO = {"BTC", "ETH", "TRX"}
 
@@ -155,6 +156,7 @@ COMMANDS = {
 
 # ---------- главный цикл ----------
 def main() -> None:
+    setup_logging()
     print("ValutaTrade Hub. Введите help для списка команд, exit для выхода.")
     while True:
         try:
