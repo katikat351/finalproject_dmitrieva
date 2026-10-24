@@ -6,18 +6,17 @@ from valutatrade_hub.core.currencies import get_currency
 from valutatrade_hub.core.exceptions import ApiRequestError, CurrencyNotFoundError
 from valutatrade_hub.core.models import Portfolio, User
 from valutatrade_hub.core.utils import (
-    PORTFOLIOS_FILE,
-    RATES_FILE,
-    USERS_FILE,
     load_json,
     now_iso,
     save_json,
     validate_amount,
     validate_currency_code,
 )
+from valutatrade_hub.infra.settings import SettingsLoader
 
-BASE_CURRENCY = "USD"
-RATES_TTL = timedelta(minutes=5)
+settings = SettingsLoader()
+
+BASE_CURRENCY = settings.get("default_base_currency")
 
 # Заглушка курсов: сколько USD стоит 1 единица валюты.
 # Позже заменить данными из парсера.
@@ -43,7 +42,7 @@ def require_login() -> User:
 
 # ---------- портфели ----------
 def _load_portfolios() -> list[dict]:
-    return load_json(PORTFOLIOS_FILE, [])
+    return load_json(settings.get("portfolios_file"), [])
 
 
 def _get_portfolio(user_id: int) -> Portfolio:
@@ -56,7 +55,7 @@ def _get_portfolio(user_id: int) -> Portfolio:
 def _save_portfolio(portfolio: Portfolio) -> None:
     items = [i for i in _load_portfolios() if i["user_id"] != portfolio.user_id]
     items.append(portfolio.to_dict())
-    save_json(PORTFOLIOS_FILE, items)
+    save_json(settings.get("portfolios_file"), items)
 
 
 def _ensure_wallet(portfolio: Portfolio, code: str):
@@ -69,7 +68,7 @@ def _ensure_wallet(portfolio: Portfolio, code: str):
 
 # ---------- пользователи ----------
 def _load_users() -> list[dict]:
-    return load_json(USERS_FILE, [])
+    return load_json(settings.get("users_file"), [])
 
 
 def register(username: str, password: str) -> User:
@@ -80,7 +79,7 @@ def register(username: str, password: str) -> User:
     user_id = max((item["user_id"] for item in users), default=0) + 1
     user = User(user_id, username, password)  # проверит имя и пароль
     users.append(user.to_dict())
-    save_json(USERS_FILE, users)
+    save_json(settings.get("users_file"), users)
     _save_portfolio(Portfolio(user_id))
     return user
 
@@ -98,7 +97,8 @@ def login(username: str, password: str) -> User:
 
 # ---------- курсы ----------
 def _is_fresh(updated_at: str) -> bool:
-    return datetime.now() - datetime.fromisoformat(updated_at) < RATES_TTL
+    ttl = timedelta(seconds=settings.get("rates_ttl_seconds"))
+    return datetime.now() - datetime.fromisoformat(updated_at) < ttl
 
 
 def _fetch_rate(from_code: str, to_code: str) -> float | None:
@@ -115,7 +115,7 @@ def get_rate(from_code: str, to_code: str) -> tuple[float, str]:
     if from_code == to_code:
         return 1.0, now_iso()
 
-    rates = load_json(RATES_FILE, {})
+    rates = load_json(settings.get("rates_file"), {})
     key = f"{from_code}_{to_code}"
     entry = rates.get(key)
     if isinstance(entry, dict) and _is_fresh(entry["updated_at"]):
@@ -126,7 +126,7 @@ def get_rate(from_code: str, to_code: str) -> tuple[float, str]:
     rates[key] = {"rate": rate, "updated_at": updated_at}
     rates["source"] = "stub"
     rates["last_refresh"] = updated_at
-    save_json(RATES_FILE, rates)
+    save_json(settings.get("rates_file"), rates)
     return rate, updated_at
 
 
