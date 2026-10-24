@@ -139,8 +139,9 @@ class Wallet:
         self._check_amount(amount)
         if amount > self._balance:
             raise ValueError(
-                f"Недостаточно средств: доступно {self._balance} "
-                f"{self.currency_code}, требуется {amount}"
+                f"Недостаточно средств: доступно {self._balance:.4f} "
+                f"{self.currency_code}, требуется {amount:.4f} "
+                f"{self.currency_code}"
             )
         self._balance -= amount
 
