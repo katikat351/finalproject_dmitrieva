@@ -1,10 +1,13 @@
 """Singleton с настройками проекта"""
 
+import os
 import tomllib
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Корень данных: переменная окружения VALUTATRADE_HOME или текущая папка запуска.
+# установленный пакет не пишет данные внутрь своего окружения
+PROJECT_ROOT = Path(os.getenv("VALUTATRADE_HOME") or Path.cwd()).resolve()
 PYPROJECT_FILE = PROJECT_ROOT / "pyproject.toml"
 
 # Значения по умолчанию: программа работает, даже если pyproject.toml
