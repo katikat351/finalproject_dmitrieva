@@ -2,11 +2,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-USERS_FILE = DATA_DIR / "users.json"
-PORTFOLIOS_FILE = DATA_DIR / "portfolios.json"
-RATES_FILE = DATA_DIR / "rates.json"
-
 
 def load_json(path: Path, default):
     """Читает JSON-файл; если файла нет или он пустой, возвращает default."""
