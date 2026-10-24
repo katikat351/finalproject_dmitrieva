@@ -103,3 +103,51 @@ class User:
             registration_date=datetime.fromisoformat(data["registration_date"]),
         )
 
+
+class Wallet:
+    """Кошелёк для одной валюты."""
+
+    def __init__(self, currency_code: str, balance: float = 0.0):
+        self.currency_code = currency_code
+        self._balance = 0.0
+        self.balance = balance  # через сеттер
+
+    @property
+    def balance(self) -> float:
+        return self._balance
+
+    @balance.setter
+    def balance(self, value: float) -> None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError("Баланс должен быть числом")
+        if value < 0:
+            raise ValueError("Баланс не может быть отрицательным")
+        self._balance = float(value)
+
+    @staticmethod
+    def _check_amount(amount: float) -> None:
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            raise TypeError("Сумма должна быть числом")
+        if amount <= 0:
+            raise ValueError("Сумма должна быть положительным числом")
+
+    def deposit(self, amount: float) -> None:
+        self._check_amount(amount)
+        self._balance += amount
+
+    def withdraw(self, amount: float) -> None:
+        self._check_amount(amount)
+        if amount > self._balance:
+            raise ValueError(
+                f"Недостаточно средств: доступно {self._balance} "
+                f"{self.currency_code}, требуется {amount}"
+            )
+        self._balance -= amount
+
+    def get_balance_info(self) -> str:
+        return f"{self.currency_code}: {self._balance:.4f}"
+
+    def to_dict(self) -> dict:
+        return {"currency_code": self.currency_code, "balance": self._balance}
+
+
