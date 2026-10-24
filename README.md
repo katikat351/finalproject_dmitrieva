@@ -88,6 +88,23 @@ USD-кошелька, при продаже выручка начисляетс�
 Интерфейс: `SettingsLoader()` (всегда один и тот же объект), `get(key, default)`,
 `reload()`.
 
+## Логирование
+
+Операции `register`, `login`, `buy` и `sell` пишутся в `logs/actions.log`
+декоратором `@log_action` (`valutatrade_hub/decorators.py`). Пароли в лог не
+попадают. Исключения не подавляются: после записи они пробрасываются дальше.
+
+Формат записи (человекочитаемый):
+
+```
+INFO 2026-10-24T14:05:50 BUY user='alice' currency='BTC' amount=0.0500 rate=59337.21 base='USD' balance=0.0000->0.0500 result=OK
+INFO 2026-10-24T14:05:58 BUY user='alice' currency='BTC' amount=1.0000 result=ERROR error_type=InsufficientFundsError error_message='...'
+```
+
+Ротация: файл до 1 МБ, хранится 3 копии (`log_max_bytes`, `log_backup_count`).
+Уровень по умолчанию `INFO`, для отладки поставьте `log_level = "DEBUG"` в
+`[tool.valutatrade]`. Настройка выполняется в `valutatrade_hub/logging_config.py`.
+
 ## Структура проекта
 
 ```
@@ -112,8 +129,3 @@ main.py                      точка входа
   `uv run ruff format .`.
 - Ветвление по GitHub Flow: отдельная ветка на каждую задачу, слияние через
   pull request, сообщения коммитов осмысленные.
-
-## Планы
-
-Логирование (`@log_action`), Parser Service, `DatabaseManager`, кеш на
-замыканиях, замер времени выполнения. Разделы появятся по мере готовности.
