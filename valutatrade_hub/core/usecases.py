@@ -99,9 +99,22 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _is_fresh(updated_at: str) -> bool:
-    ttl = timedelta(seconds=settings.get("rates_ttl_seconds"))
-    return datetime.now(timezone.utc) - datetime.fromisoformat(updated_at) < ttl
+def _is_crypto(code: str) -> bool:
+    try:
+        return isinstance(get_currency(code), CryptoCurrency)
+    except CurrencyNotFoundError:
+        return False
+
+
+def _ttl_seconds(code: str) -> int:
+    """Срок жизни курса: у фиата дольше (бесплатный API обновляет его редко)."""
+    key = "rates_ttl_seconds" if _is_crypto(code) else "fiat_rates_ttl_seconds"
+    return settings.get(key)
+
+
+def _is_fresh(updated_at: str, code: str) -> bool:
+    age = datetime.now(timezone.utc) - datetime.fromisoformat(updated_at)
+    return age < timedelta(seconds=_ttl_seconds(code))
 
 
 def _load_rates() -> dict:
@@ -116,62 +129,59 @@ def _load_pairs() -> dict:
 
 def _price_in_usd(
     code: str, pairs: dict, allow_stale: bool, label: str
-) -> tuple[float, str | None]:
-    """Сколько USD стоит 1 единица валюты и когда курс обновлён."""
+) -> tuple[float, str | None, bool]:
+    """Сколько USD стоит 1 единица валюты: (цена, время обновления, устарел ли)."""
     if code == RATES_BASE:
-        return 1.0, None
+        return 1.0, None, False
     entry = pairs.get(f"{code}_{RATES_BASE}")
     if not isinstance(entry, dict) or "rate" not in entry or "updated_at" not in entry:
         raise RatesUnavailableError(
             f"Курс {label} недоступен. Выполните 'update-rates' и повторите попытку."
         )
-    if not allow_stale and not _is_fresh(entry["updated_at"]):
+    stale = not _is_fresh(entry["updated_at"], code)
+    if stale and not allow_stale:
         raise RatesUnavailableError(
             f"Курс {label} устарел (обновлён {entry['updated_at']}). "
             "Выполните 'update-rates'."
         )
-    return entry["rate"], entry["updated_at"]
+    return entry["rate"], entry["updated_at"], stale
 
 
 def get_rate(
     from_code: str, to_code: str, allow_stale: bool = False
-) -> tuple[float, str]:
-    """Возвращает (курс, время обновления) из кеша парсера"""
+) -> tuple[float, str, bool]:
+    """Возвращает (курс, время обновления, устарел ли) из кеша парсера."""
     from_code = get_currency(validate_currency_code(from_code)).code
     to_code = get_currency(validate_currency_code(to_code)).code
     if from_code == to_code:
-        return 1.0, _utc_now()
+        return 1.0, _utc_now(), False
 
     label = f"{from_code}→{to_code}"
     pairs = _load_pairs()
-    from_price, from_time = _price_in_usd(from_code, pairs, allow_stale, label)
-    to_price, to_time = _price_in_usd(to_code, pairs, allow_stale, label)
+    from_price, from_time, from_stale = _price_in_usd(
+        from_code, pairs, allow_stale, label
+    )
+    to_price, to_time, to_stale = _price_in_usd(to_code, pairs, allow_stale, label)
     oldest = min(t for t in (from_time, to_time) if t)
-    return from_price / to_price, oldest
+    return from_price / to_price, oldest, from_stale or to_stale
 
 
 def get_rate_info(from_code: str, to_code: str) -> dict:
-    rate, updated_at = get_rate(from_code, to_code)
+    """Курс пары и обратный курс; устаревший курс не блокируется, а помечается."""
+    rate, updated_at, stale = get_rate(from_code, to_code, allow_stale=True)
     return {
         "from": validate_currency_code(from_code),
         "to": validate_currency_code(to_code),
         "rate": rate,
         "reverse_rate": 1 / rate,
         "updated_at": updated_at,
-        "stale": not _is_fresh(updated_at),
+        "stale": stale,
     }
 
 
 def _rate_for_trade(code: str) -> float:
-    """Курс code→USD для сделки; устаревший курс не принимается"""
+    """Курс code→USD для сделки; устаревший курс не принимается."""
     return get_rate(code, BASE_CURRENCY)[0]
-
-
-def _is_crypto(code: str) -> bool:
-    try:
-        return isinstance(get_currency(code), CryptoCurrency)
-    except CurrencyNotFoundError:
-        return False
 
 
 def list_rates(
@@ -232,7 +242,7 @@ def list_rates(
         "base": base,
         "last_refresh": data.get("last_refresh"),
         "rows": rows,
-        "stale": any(not _is_fresh(row["updated_at"]) for row in rows),
+        "stale": any(not _is_fresh(row["updated_at"], row["code"]) for row in rows),
     }
 
 
