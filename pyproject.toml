@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 project = "valutatrade_hub.cli.interface:main"
+rates-scheduler = "valutatrade_hub.parser_service.scheduler:main"
 
 [build-system]
 requires = ["hatchling"]
