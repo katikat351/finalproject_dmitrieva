@@ -18,6 +18,9 @@ DEFAULTS: dict[str, Any] = {
     "portfolios_file": "portfolios.json",
     "rates_file": "rates.json",
     "rates_ttl_seconds": 300,
+    "fiat_rates_ttl_seconds": 7200,
+    "parser_crypto_interval_seconds": 300,
+    "parser_fiat_interval_seconds": 3600,
     "default_base_currency": "USD",
     "log_dir": "logs",
     "log_file": "actions.log",
@@ -25,7 +28,6 @@ DEFAULTS: dict[str, Any] = {
     "log_format": "%(levelname)s %(asctime)s %(message)s",
     "log_max_bytes": 1_000_000,
     "log_backup_count": 3,
-    "parser_interval_seconds": 3600,
 }
 
 _MISSING = object()
@@ -57,9 +59,10 @@ class SettingsLoader:
         """Перечитывает настройки (значения по умолчанию + pyproject.toml)"""
         config = {**DEFAULTS, **self._read_pyproject()}
 
-        ttl = config["rates_ttl_seconds"]
-        if isinstance(ttl, bool) or not isinstance(ttl, int) or ttl <= 0:
-            raise ValueError("rates_ttl_seconds должен быть положительным целым")
+        for key in ("rates_ttl_seconds", "fiat_rates_ttl_seconds"):
+            value = config[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{key} должен быть положительным целым")
 
         # Пути превращаем в абсолютные (от корня проекта)
         data_dir = PROJECT_ROOT / config["data_dir"]
