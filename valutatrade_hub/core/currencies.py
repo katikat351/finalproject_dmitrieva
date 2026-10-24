@@ -61,15 +61,19 @@ class CryptoCurrency(Currency):
         )
 
 
-# Реестр валют: код -> объект валюты.
+# Реестр валют: код -> объект валюты
+# Капитализация криптовалют: последние известные значения (CoinGecko, 24.10.2026)
 _REGISTRY: dict[str, Currency] = {
     currency.code: currency
     for currency in (
         FiatCurrency("US Dollar", "USD", "United States"),
         FiatCurrency("Euro", "EUR", "Eurozone"),
         FiatCurrency("Russian Ruble", "RUB", "Russia"),
-        CryptoCurrency("Bitcoin", "BTC", "SHA-256", 1.12e12),
-        CryptoCurrency("Ethereum", "ETH", "Ethash", 4.5e11),
+        FiatCurrency("British Pound", "GBP", "United Kingdom"),
+        CryptoCurrency("Bitcoin", "BTC", "SHA-256", 1620185328228.6343),
+        CryptoCurrency("Ethereum", "ETH", "Ethash", 289354094057.92474),
+        CryptoCurrency("Solana", "SOL", "Proof of History", 59940216017.7855),
+        CryptoCurrency("Tron", "TRX", "DPoS", 31350066632.86955),
     )
 }
 

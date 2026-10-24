@@ -12,3 +12,4 @@ wheels/
 dist/
 .ruff_cache/
 logs/
+`n.env
