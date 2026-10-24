@@ -43,3 +43,4 @@ log_level = "INFO"
 log_format = "%(levelname)s %(asctime)s %(message)s"
 log_max_bytes = 1000000
 log_backup_count = 3
+parser_interval_seconds = 3600
