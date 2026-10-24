@@ -88,18 +88,12 @@ def cmd_show_portfolio(args: list[str]) -> None:
         return
 
     print(f"Портфель пользователя '{data['username']}' (база: {base}):")
-    table = PrettyTable(["Валюта", "Баланс", f"Стоимость ({base})"])
-    table.align = "r"
-    table.align["Валюта"] = "l"
     for row in data["rows"]:
-        table.add_row(
-            [
-                row["code"],
-                _fmt_amount(row["code"], row["balance"]),
-                f"{row['value']:,.2f}",
-            ]
+        print(
+            f"- {row['code']}: {_fmt_amount(row['code'], row['balance'])}  "
+            f"→ {row['value']:,.2f} {base}"
         )
-    print(table)
+    print("-" * 33)
     print(f"ИТОГО: {data['total']:,.2f} {base}")
     if data["stale"]:
         print("Внимание: курсы устарели. Выполните 'update-rates'.")

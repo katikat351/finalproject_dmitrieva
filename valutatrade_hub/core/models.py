@@ -170,12 +170,19 @@ class Portfolio:
     # фиксированные курсы к USD (позже заменим данными из rates.json / Parser Service)
     exchange_rates = {"USD": 1.0, "EUR": 1.08, "BTC": 60000.0, "ETH": 3000.0}
 
-    def __init__(self, user_id: int, wallets: dict[str, Wallet] | None = None):
+    def __init__(
+        self,
+        user_id: int,
+        wallets: dict[str, Wallet] | None = None,
+        user: User | None = None,
+    ):
         self._user_id = user_id
+        self._user = user
         self._wallets: dict[str, Wallet] = wallets or {}
 
     @property
     def user_id(self) -> int:
+        """Владелец портфеля (только чтение)"""
         return self._user_id
 
     @property
@@ -196,16 +203,25 @@ class Portfolio:
             raise KeyError(f"Кошелька {code} нет в портфеле")
         return self._wallets[code]
 
-    def get_total_value(self, base_currency: str = "USD") -> float:
+    def _stub_rate(self, from_code: str, to_code: str) -> float:
+        """Курс по фиксированной таблице exchange_rates (запасной вариант)."""
+        rates = self.exchange_rates
+        if from_code not in rates or to_code not in rates:
+            raise KeyError(f"Нет курса для {from_code}→{to_code}")
+        return rates[from_code] / rates[to_code]
+
+    def get_total_value(self, base_currency: str = "USD", rate_getter=None) -> float:
+        """Общая стоимость всех кошельков в базовой валюте.
+
+        rate_getter(from_code, to_code) возвращает курс (например, из кеша
+        парсера); без него используются фиксированные курсы exchange_rates.
+        """
         base = base_currency.upper()
-        if base not in self.exchange_rates:
-            raise KeyError(f"Неизвестная базовая валюта: {base}")
-        total_usd = 0.0
-        for code, wallet in self._wallets.items():
-            if code not in self.exchange_rates:
-                raise KeyError(f"Нет курса для валюты {code}")
-            total_usd += wallet.balance * self.exchange_rates[code]
-        return total_usd / self.exchange_rates[base]
+        get_rate = rate_getter or self._stub_rate
+        return sum(
+            wallet.balance * get_rate(code, base)
+            for code, wallet in self._wallets.items()
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -214,9 +230,10 @@ class Portfolio:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Portfolio":
+    def from_dict(cls, data: dict, user: User | None = None) -> "Portfolio":
+        """Создаёт портфель из словаря (формат portfolios.json)"""
         wallets = {
             code: Wallet(code, info["balance"])
             for code, info in data.get("wallets", {}).items()
         }
-        return cls(data["user_id"], wallets)
+        return cls(data["user_id"], wallets, user)

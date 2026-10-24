@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -13,10 +14,12 @@ def load_json(path: Path, default):
 
 
 def save_json(path: Path, data) -> None:
-    """Записывает данные в JSON-файл."""
+    """Записывает данные в JSON-файл атомарно (временный файл, затем замена)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as file:
+    tmp_path = path.with_name(path.name + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, path)
 
 
 def validate_currency_code(code: str) -> str:
