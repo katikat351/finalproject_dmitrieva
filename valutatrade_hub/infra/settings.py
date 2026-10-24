@@ -22,6 +22,7 @@ DEFAULTS: dict[str, Any] = {
     "log_format": "%(levelname)s %(asctime)s %(message)s",
     "log_max_bytes": 1_000_000,
     "log_backup_count": 3,
+    "parser_interval_seconds": 3600,
 }
 
 _MISSING = object()

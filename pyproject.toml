@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 project = "valutatrade_hub.cli.interface:main"
+rates-scheduler = "valutatrade_hub.parser_service.scheduler:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -43,3 +44,4 @@ log_level = "INFO"
 log_format = "%(levelname)s %(asctime)s %(message)s"
 log_max_bytes = 1000000
 log_backup_count = 3
+parser_interval_seconds = 3600
