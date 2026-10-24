@@ -5,6 +5,12 @@ import shlex
 from prettytable import PrettyTable
 
 from valutatrade_hub.core import usecases as uc
+from valutatrade_hub.core.currencies import get_supported_codes
+from valutatrade_hub.core.exceptions import (
+    ApiRequestError,
+    CurrencyNotFoundError,
+    InsufficientFundsError,
+)
 
 CRYPTO = {"BTC", "ETH", "TRX"}
 
@@ -175,5 +181,14 @@ def main() -> None:
 
         try:
             handler(args)
+        except InsufficientFundsError as error:
+            print(error)
+        except CurrencyNotFoundError as error:
+            print(error)
+            codes = ", ".join(get_supported_codes())
+            print(f"Поддерживаемые валюты: {codes}. Список команд: help")
+        except ApiRequestError as error:
+            print(error)
+            print("Повторите попытку позже или проверьте подключение к сети.")
         except ValueError as error:
             print(error)
