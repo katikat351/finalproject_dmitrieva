@@ -14,6 +14,7 @@ class BaseApiClient(ABC):
     """Общий интерфейс: fetch_rates() возвращает {"BTC_USD": 59337.21, ...}"""
 
     source_name = "API"
+    source_key = "api"
 
     def __init__(self, config: ParserConfig | None = None):
         self.config = config or ParserConfig()
@@ -78,6 +79,7 @@ class CoinGeckoClient(BaseApiClient):
     """Криптовалюты (CoinGecko, ключ не нужен)"""
 
     source_name = "CoinGecko"
+    source_key = "coingecko"
 
     def fetch_rates(self) -> dict[str, float]:
         cfg = self.config
@@ -111,6 +113,7 @@ class ExchangeRateApiClient(BaseApiClient):
     """Фиатные валюты (ExchangeRate-API, нужен ключ)"""
 
     source_name = "ExchangeRate-API"
+    source_key = "exchangerate"
 
     ERRORS = {
         "invalid-key": "неверный API-ключ",
