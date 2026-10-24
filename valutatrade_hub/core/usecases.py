@@ -1,13 +1,12 @@
 """Бизнес-логика приложения. CLI только вызывает функции отсюда."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from valutatrade_hub.core.currencies import get_currency
-from valutatrade_hub.core.exceptions import ApiRequestError, CurrencyNotFoundError
+from valutatrade_hub.core.currencies import CryptoCurrency, get_currency
+from valutatrade_hub.core.exceptions import CurrencyNotFoundError, RatesUnavailableError
 from valutatrade_hub.core.models import Portfolio, User
 from valutatrade_hub.core.utils import (
     load_json,
-    now_iso,
     save_json,
     validate_amount,
     validate_currency_code,
@@ -18,16 +17,7 @@ from valutatrade_hub.infra.settings import SettingsLoader
 settings = SettingsLoader()
 
 BASE_CURRENCY = settings.get("default_base_currency")
-
-# Заглушка курсов: сколько USD стоит 1 единица валюты.
-# Позже заменить данными из парсера.
-STUB_RATES_TO_USD = {
-    "USD": 1.0,
-    "EUR": 1.0786,
-    "BTC": 59337.21,
-    "ETH": 3720.0,
-    "RUB": 0.01016,
-}
+RATES_BASE = "USD"  # в rates.json все курсы хранятся относительно USD
 
 # Текущая сессия хранится в памяти (пока работает программа)
 _session: dict[str, User | None] = {"user": None}
@@ -104,38 +94,59 @@ def login(username: str, password: str) -> User:
 
 
 # ---------- курсы ----------
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _is_fresh(updated_at: str) -> bool:
     ttl = timedelta(seconds=settings.get("rates_ttl_seconds"))
-    return datetime.now() - datetime.fromisoformat(updated_at) < ttl
+    return datetime.now(timezone.utc) - datetime.fromisoformat(updated_at) < ttl
 
 
-def _fetch_rate(from_code: str, to_code: str) -> float | None:
-    """Заглушка получения курса (потом здесь будет Parser Service)"""
-    if from_code not in STUB_RATES_TO_USD or to_code not in STUB_RATES_TO_USD:
-        raise ApiRequestError(f"нет данных по паре {from_code}→{to_code}")
-    return STUB_RATES_TO_USD[from_code] / STUB_RATES_TO_USD[to_code]
+def _load_rates() -> dict:
+    data = load_json(settings.get("rates_file"), {})
+    return data if isinstance(data, dict) else {}
 
 
-def get_rate(from_code: str, to_code: str) -> tuple[float, str]:
-    """Возвращает (курс, время обновления). Сначала смотрит кеш rates.json."""
+def _load_pairs() -> dict:
+    pairs = _load_rates().get("pairs")
+    return pairs if isinstance(pairs, dict) else {}
+
+
+def _price_in_usd(
+    code: str, pairs: dict, allow_stale: bool, label: str
+) -> tuple[float, str | None]:
+    """Сколько USD стоит 1 единица валюты и когда курс обновлён."""
+    if code == RATES_BASE:
+        return 1.0, None
+    entry = pairs.get(f"{code}_{RATES_BASE}")
+    if not isinstance(entry, dict) or "rate" not in entry or "updated_at" not in entry:
+        raise RatesUnavailableError(
+            f"Курс {label} недоступен. Выполните 'update-rates' и повторите попытку."
+        )
+    if not allow_stale and not _is_fresh(entry["updated_at"]):
+        raise RatesUnavailableError(
+            f"Курс {label} устарел (обновлён {entry['updated_at']}). "
+            "Выполните 'update-rates'."
+        )
+    return entry["rate"], entry["updated_at"]
+
+
+def get_rate(
+    from_code: str, to_code: str, allow_stale: bool = False
+) -> tuple[float, str]:
+    """Возвращает (курс, время обновления) из кеша парсера"""
     from_code = get_currency(validate_currency_code(from_code)).code
     to_code = get_currency(validate_currency_code(to_code)).code
     if from_code == to_code:
-        return 1.0, now_iso()
+        return 1.0, _utc_now()
 
-    rates = load_json(settings.get("rates_file"), {})
-    key = f"{from_code}_{to_code}"
-    entry = rates.get(key)
-    if isinstance(entry, dict) and _is_fresh(entry["updated_at"]):
-        return entry["rate"], entry["updated_at"]
-
-    rate = _fetch_rate(from_code, to_code)
-    updated_at = now_iso()
-    rates[key] = {"rate": rate, "updated_at": updated_at}
-    rates["source"] = "stub"
-    rates["last_refresh"] = updated_at
-    save_json(settings.get("rates_file"), rates)
-    return rate, updated_at
+    label = f"{from_code}→{to_code}"
+    pairs = _load_pairs()
+    from_price, from_time = _price_in_usd(from_code, pairs, allow_stale, label)
+    to_price, to_time = _price_in_usd(to_code, pairs, allow_stale, label)
+    oldest = min(t for t in (from_time, to_time) if t)
+    return from_price / to_price, oldest
 
 
 def get_rate_info(from_code: str, to_code: str) -> dict:
@@ -146,17 +157,82 @@ def get_rate_info(from_code: str, to_code: str) -> dict:
         "rate": rate,
         "reverse_rate": 1 / rate,
         "updated_at": updated_at,
+        "stale": not _is_fresh(updated_at),
     }
 
 
 def _rate_for_trade(code: str) -> float:
-    """ошибка курса по валюте code"""
+    """Курс code→USD для сделки; устаревший курс не принимается"""
+    return get_rate(code, BASE_CURRENCY)[0]
+
+
+def _is_crypto(code: str) -> bool:
     try:
-        return get_rate(code, BASE_CURRENCY)[0]
-    except ApiRequestError:
-        raise ApiRequestError(
-            f"не удалось получить курс для {code}→{BASE_CURRENCY}"
-        ) from None
+        return isinstance(get_currency(code), CryptoCurrency)
+    except CurrencyNotFoundError:
+        return False
+
+
+def list_rates(
+    currency: str | None = None, top: int | None = None, base: str | None = None
+) -> dict:
+    """Курсы из локального кеша с фильтрами (для команды show-rates)."""
+    data = _load_rates()
+    pairs = data.get("pairs")
+    if not isinstance(pairs, dict) or not pairs:
+        raise RatesUnavailableError(
+            "Локальный кеш курсов пуст. Выполните 'update-rates', "
+            "чтобы загрузить данные."
+        )
+
+    base = get_currency(validate_currency_code(base or RATES_BASE)).code
+    if base == RATES_BASE:
+        base_price = 1.0
+    else:
+        base_entry = pairs.get(f"{base}_{RATES_BASE}")
+        if not isinstance(base_entry, dict):
+            raise RatesUnavailableError(f"Курс для '{base}' не найден в кеше.")
+        base_price = base_entry["rate"]
+
+    suffix = f"_{RATES_BASE}"
+    rows = []
+    for key, entry in pairs.items():
+        if not key.endswith(suffix):
+            continue
+        code = key[: -len(suffix)]
+        if code == base:
+            continue
+        rows.append(
+            {
+                "pair": f"{code}_{base}",
+                "code": code,
+                "rate": entry["rate"] / base_price,
+                "updated_at": entry["updated_at"],
+                "source": entry.get("source", "-"),
+            }
+        )
+
+    if currency is not None:
+        code = validate_currency_code(currency)
+        rows = [row for row in rows if row["code"] == code]
+        if not rows:
+            raise RatesUnavailableError(f"Курс для '{code}' не найден в кеше.")
+
+    if top is not None:
+        if top <= 0:
+            raise ValueError("--top должен быть положительным целым числом")
+        rows = [row for row in rows if _is_crypto(row["code"])]
+        rows.sort(key=lambda row: row["rate"], reverse=True)
+        rows = rows[:top]
+    else:
+        rows.sort(key=lambda row: row["pair"])
+
+    return {
+        "base": base,
+        "last_refresh": data.get("last_refresh"),
+        "rows": rows,
+        "stale": any(not _is_fresh(row["updated_at"]) for row in rows),
+    }
 
 
 # ---------- портфель ----------
@@ -171,12 +247,20 @@ def show_portfolio(base: str = BASE_CURRENCY) -> dict:
     portfolio = _get_portfolio(user.user_id)
     rows = []
     total = 0.0
+    stale = False
     for code, wallet in portfolio.wallets.items():
-        rate = 1.0 if code == base else get_rate(code, base)[0]
+        rate, updated_at = get_rate(code, base, allow_stale=True)
+        stale = stale or not _is_fresh(updated_at)
         value = wallet.balance * rate
         rows.append({"code": code, "balance": wallet.balance, "value": value})
         total += value
-    return {"username": user.username, "base": base, "rows": rows, "total": total}
+    return {
+        "username": user.username,
+        "base": base,
+        "rows": rows,
+        "total": total,
+        "stale": stale,
+    }
 
 
 # ---------- сделки ----------

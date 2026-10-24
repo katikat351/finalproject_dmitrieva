@@ -10,8 +10,10 @@ from valutatrade_hub.core.exceptions import (
     ApiRequestError,
     CurrencyNotFoundError,
     InsufficientFundsError,
+    RatesUnavailableError,
 )
-from valutatrade_hub.logging_config import setup_logging
+from valutatrade_hub.logging_config import setup_logging, setup_parser_logging
+from valutatrade_hub.parser_service.updater import build_updater
 
 CRYPTO = {"BTC", "ETH", "TRX"}
 
@@ -22,6 +24,8 @@ HELP_TEXT = """Команды:
   buy --currency <код> --amount <число>
   sell --currency <код> --amount <число>
   get-rate --from <код> --to <код>
+  update-rates [--source coingecko|exchangerate]
+  show-rates [--currency <код>] [--top <число>] [--base <валюта>]
   help
   exit"""
 
@@ -97,6 +101,8 @@ def cmd_show_portfolio(args: list[str]) -> None:
         )
     print(table)
     print(f"ИТОГО: {data['total']:,.2f} {base}")
+    if data["stale"]:
+        print("Внимание: курсы устарели. Выполните 'update-rates'.")
 
 
 def _print_trade(title: str, res: dict, value_label: str, value_key: str) -> None:
@@ -132,11 +138,56 @@ def cmd_sell(args: list[str]) -> None:
 def cmd_get_rate(args: list[str]) -> None:
     opts = _parse_options(args, required=("from", "to"))
     info = uc.get_rate_info(opts["from"], opts["to"])
-    updated = info["updated_at"].replace("T", " ")
+    updated = info["updated_at"].replace("T", " ").rstrip("Z")
     print(
         f"Курс {info['from']}→{info['to']}: {info['rate']:.8f} (обновлено: {updated})"
     )
     print(f"Обратный курс {info['to']}→{info['from']}: {info['reverse_rate']:.8f}")
+    if info["stale"]:
+        print("Внимание: курс устарел. Выполните 'update-rates'.")
+
+
+def cmd_update_rates(args: list[str]) -> None:
+    opts = _parse_options(args, optional=("source",))
+    setup_parser_logging(console=True)
+    result = build_updater().run_update(opts.get("source"))
+    if result.errors:
+        print("Update completed with errors. Check logs/parser.log for details.")
+    else:
+        print(
+            f"Update successful. Total rates updated: {result.total}. "
+            f"Last refresh: {result.last_refresh}"
+        )
+
+
+def cmd_show_rates(args: list[str]) -> None:
+    opts = _parse_options(args, optional=("currency", "top", "base"))
+    top = None
+    if "top" in opts:
+        try:
+            top = int(opts["top"])
+        except ValueError:
+            raise ValueError("--top должен быть положительным целым числом") from None
+
+    data = uc.list_rates(opts.get("currency"), top, opts.get("base"))
+    refreshed = (data["last_refresh"] or "unknown").replace("T", " ").rstrip("Z")
+    print(f"Rates from cache (updated at {refreshed}):")
+    table = PrettyTable(["Pair", "Rate", "Updated", "Source"])
+    table.align = "r"
+    table.align["Pair"] = "l"
+    table.align["Source"] = "l"
+    for row in data["rows"]:
+        table.add_row(
+            [
+                row["pair"],
+                _fmt_rate(row["rate"]),
+                row["updated_at"].replace("T", " ").rstrip("Z"),
+                row["source"],
+            ]
+        )
+    print(table)
+    if data["stale"]:
+        print("Внимание: часть курсов устарела. Выполните 'update-rates'.")
 
 
 def cmd_help(args: list[str]) -> None:
@@ -150,6 +201,8 @@ COMMANDS = {
     "buy": cmd_buy,
     "sell": cmd_sell,
     "get-rate": cmd_get_rate,
+    "update-rates": cmd_update_rates,
+    "show-rates": cmd_show_rates,
     "help": cmd_help,
 }
 
@@ -192,5 +245,7 @@ def main() -> None:
         except ApiRequestError as error:
             print(error)
             print("Повторите попытку позже или проверьте подключение к сети.")
+        except RatesUnavailableError as error:
+            print(error)
         except ValueError as error:
             print(error)
